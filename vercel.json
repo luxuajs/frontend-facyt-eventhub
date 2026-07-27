@@ -2,7 +2,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "REPLACE_WITH_YOUR_RENDER_BACKEND_URL/api/:path*"
+      "destination": "https://facyt-eventhub-backend.onrender.com/api/:path*"
     },
     {
       "source": "/((?!api/).*)",
