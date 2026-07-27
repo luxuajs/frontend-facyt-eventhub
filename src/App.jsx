@@ -12,6 +12,7 @@ import NewReservationForm from './components/NewReservationForm';
 import CoordinatorQueue from './components/CoordinatorQueue';
 import CoordinatorManagement from './components/CoordinatorManagement';
 import AuditLogs from './components/AuditLogs';
+import EspaciosManagement from './components/EspaciosManagement';
 
 export default function App() {
   const [token, setToken] = useState(localStorage.getItem('token') || '');
@@ -96,7 +97,7 @@ export default function App() {
       case 'confirm-invite':
         return <ConfirmInvite token={inviteToken} onNavigate={setActiveTab} />;
       case 'calendario':
-        return <CalendarView />;
+        return <CalendarView token={token} />;
       case 'mis-reservas':
         return token ? <ReservationsList token={token} /> : <Login onLoginSuccess={handleLoginSuccess} onNavigate={setActiveTab} />;
       case 'nueva-reserva':
@@ -115,6 +116,12 @@ export default function App() {
         ) : (
           <div className="text-center py-12 text-slate-500">Acceso denegado.</div>
         );
+      case 'espacios':
+        return token && (user?.rol === 'COORDINADOR' || user?.rol === 'ROOT') ? (
+          <EspaciosManagement user={user} token={token} />
+        ) : (
+          <div className="text-center py-12 text-slate-500">Acceso denegado.</div>
+        );
       case 'invitar-coordinador':
         return token && user?.rol === 'ROOT' ? (
           <CoordinatorManagement token={token} />
@@ -128,7 +135,7 @@ export default function App() {
           <div className="text-center py-12 text-slate-500">Acceso denegado.</div>
         );
       default:
-        return <CalendarView />;
+        return <CalendarView token={token} />;
     }
   };
 
