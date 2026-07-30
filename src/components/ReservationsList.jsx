@@ -3,7 +3,7 @@ import { CalendarRange, Sparkles, MapPin, Clock, Info, Check, X, ArrowRight, Ale
 import EditEventModal from './EditEventModal';
 import PromoteEventModal from './PromoteEventModal';
 
-export default function ReservationsList({ token }) {
+export default function ReservationsList({ token, user }) {
   const [reservas, setReservas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [actionError, setActionError] = useState('');
@@ -157,7 +157,7 @@ export default function ReservationsList({ token }) {
                     Prioridad: {reserva.prioridad}
                   </span>
 
-                  {reserva.estado === 'APROBADO' && (
+                  {reserva.estado === 'APROBADO' && user && (user.rol === 'ROOT' || user.rol === 'COORDINADOR' || (user.rol === 'SOLICITANTE' && (reserva.usuarioId === user.id || (reserva.usuario && reserva.usuario.id === user.id)))) && (
                     <button
                       type="button"
                       onClick={() => setPromotingEvento(reserva)}

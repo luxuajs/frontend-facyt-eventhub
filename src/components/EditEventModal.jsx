@@ -9,6 +9,25 @@ export default function EditEventModal({ token, evento, onClose, onEventUpdated 
   const [tipo, setTipo] = useState(evento.tipo || 'Clase Teórica');
   const [asistentesEstimados, setAsistentesEstimados] = useState(evento.asistentesEstimados || '');
   const [espacioId, setEspacioId] = useState(evento.espacioId || '');
+
+  // Deducir carrera en base a la materia inicial
+  const getCarreraFromMateria = (mat) => {
+    if (!mat) return 'Computación';
+    const comp = ["Redes y Telecomunicaciones", "Sistemas Operativos", "Arquitectura del Computador", "Bases de Datos", "Programación", "Estructuras de Datos"];
+    const quim = ["Química Orgánica", "Química Analítica", "Fisicoquímica"];
+    const fis = ["Física Experimental", "Electromagnetismo", "Óptica"];
+    const bio = ["Microbiología", "Genética", "Bioquímica"];
+    const matList = ["Cálculo Numérico", "Estadística Computacional"];
+    if (comp.includes(mat)) return 'Computación';
+    if (quim.includes(mat)) return 'Química';
+    if (fis.includes(mat)) return 'Física';
+    if (bio.includes(mat)) return 'Biología';
+    if (matList.includes(mat)) return 'Matemáticas';
+    return 'Computación';
+  };
+
+  const [carrera, setCarrera] = useState(getCarreraFromMateria(evento.materia));
+  const [materia, setMateria] = useState(evento.materia || '');
   
   // Format initial date YYYY-MM-DD
   const initialDateStr = evento.fecha ? new Date(evento.fecha).toISOString().split('T')[0] : '';
@@ -47,6 +66,8 @@ export default function EditEventModal({ token, evento, onClose, onEventUpdated 
           titulo,
           descripcion,
           tipo,
+          carrera: ['Clase Teórica', 'Clase de Laboratorio'].includes(tipo) ? carrera : null,
+          materia: tipo === 'Clase de Laboratorio' ? materia : null,
           asistentesEstimados: parseInt(asistentesEstimados),
           espacioId,
           fecha,
@@ -225,7 +246,13 @@ export default function EditEventModal({ token, evento, onClose, onEventUpdated 
               </label>
               <select
                 value={tipo}
-                onChange={(e) => setTipo(e.target.value)}
+                onChange={(e) => {
+                  setTipo(e.target.value);
+                  if (!['Clase Teórica', 'Clase de Laboratorio'].includes(e.target.value)) {
+                    setCarrera('Computación');
+                    setMateria('');
+                  }
+                }}
                 className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:border-blue-500"
               >
                 <option value="Clase Teórica">Clase Teórica</option>
@@ -253,6 +280,85 @@ export default function EditEventModal({ token, evento, onClose, onEventUpdated 
               />
             </div>
           </div>
+
+          {/* Carrera (Solo si aplica por Tipo de Evento) */}
+          {['Clase Teórica', 'Clase de Laboratorio'].includes(tipo) && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  Carrera *
+                </label>
+                <select
+                  value={carrera}
+                  onChange={(e) => {
+                    setCarrera(e.target.value);
+                    setMateria('');
+                  }}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:border-blue-500"
+                >
+                  <option value="Computación">Computación</option>
+                  <option value="Química">Química</option>
+                  <option value="Física">Física</option>
+                  <option value="Biología">Biología</option>
+                  <option value="Matemáticas">Matemáticas</option>
+                </select>
+              </div>
+
+              {/* Materia (Solo si es Clase de Laboratorio) */}
+              {tipo === 'Clase de Laboratorio' ? (
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    Materia / Asignatura *
+                  </label>
+                  <select
+                    value={materia}
+                    onChange={(e) => setMateria(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:border-blue-500"
+                    required
+                  >
+                    <option value="">-- Seleccionar Materia --</option>
+                    {carrera === 'Computación' && (
+                      <>
+                        <option value="Redes y Telecomunicaciones">Redes y Telecomunicaciones</option>
+                        <option value="Sistemas Operativos">Sistemas Operativos</option>
+                        <option value="Arquitectura del Computador">Arquitectura del Computador</option>
+                        <option value="Bases de Datos">Bases de Datos</option>
+                        <option value="Programación">Programación</option>
+                        <option value="Estructuras de Datos">Estructuras de Datos</option>
+                      </>
+                    )}
+                    {carrera === 'Química' && (
+                      <>
+                        <option value="Química Orgánica">Química Orgánica</option>
+                        <option value="Química Analítica">Química Analítica</option>
+                        <option value="Fisicoquímica">Fisicoquímica</option>
+                      </>
+                    )}
+                    {carrera === 'Física' && (
+                      <>
+                        <option value="Física Experimental">Física Experimental</option>
+                        <option value="Electromagnetismo">Electromagnetismo</option>
+                        <option value="Óptica">Óptica</option>
+                      </>
+                    )}
+                    {carrera === 'Biología' && (
+                      <>
+                        <option value="Microbiología">Microbiología</option>
+                        <option value="Genética">Genética</option>
+                        <option value="Bioquímica">Bioquímica</option>
+                      </>
+                    )}
+                    {carrera === 'Matemáticas' && (
+                      <>
+                        <option value="Cálculo Numérico">Cálculo Numérico</option>
+                        <option value="Estadística Computacional">Estadística Computacional</option>
+                      </>
+                    )}
+                  </select>
+                </div>
+              ) : <div />}
+            </div>
+          )}
 
           <div>
             <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">

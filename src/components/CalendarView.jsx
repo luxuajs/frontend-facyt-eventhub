@@ -11,7 +11,7 @@ const WEEKDAYS = [
   { dayIndex: 6, label: 'Sábado', short: 'Sáb', color: 'border-cyan-500/30 bg-cyan-500/5 text-cyan-400' },
 ];
 
-export default function CalendarView({ token }) {
+export default function CalendarView({ token, user }) {
   const [eventos, setEventos] = useState([]);
   const [espacios, setEspacios] = useState([]);
   const [filterEspacio, setFilterEspacio] = useState('ALL');
@@ -162,7 +162,7 @@ export default function CalendarView({ token }) {
           <span className="font-medium text-slate-800 dark:text-slate-300 truncate max-w-[140px]">{evento.usuario.nombre}</span>
         </div>
 
-        {token && (
+        {token && user && (user.rol === 'ROOT' || user.rol === 'COORDINADOR' || (user.rol === 'SOLICITANTE' && (evento.usuarioId === user.id || (evento.usuario && evento.usuario.id === user.id)))) && (
           <button
             type="button"
             onClick={() => setPromotingEvento(evento)}

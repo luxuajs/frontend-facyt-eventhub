@@ -97,9 +97,9 @@ export default function App() {
       case 'confirm-invite':
         return <ConfirmInvite token={inviteToken} onNavigate={setActiveTab} />;
       case 'calendario':
-        return <CalendarView token={token} />;
+        return <CalendarView token={token} user={user} />;
       case 'mis-reservas':
-        return token ? <ReservationsList token={token} /> : <Login onLoginSuccess={handleLoginSuccess} onNavigate={setActiveTab} />;
+        return token ? <ReservationsList token={token} user={user} /> : <Login onLoginSuccess={handleLoginSuccess} onNavigate={setActiveTab} />;
       case 'nueva-reserva':
         return token ? (
           <NewReservationForm
