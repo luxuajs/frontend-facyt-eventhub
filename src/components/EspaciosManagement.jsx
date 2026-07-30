@@ -7,15 +7,16 @@ export default function EspaciosManagement({ user, token }) {
   const [espacios, setEspacios] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [successMsg, setSuccessMsg] = useState('');
-
-  // Modal para ingresar motivo de mantenimiento/inhabilitación
+  const [successMsg, setSuccessMsg] = useState('');  // Modal para ingresar motivo de mantenimiento/inhabilitación
   const [selectedEspacio, setSelectedEspacio] = useState(null);
   const [targetEstado, setTargetEstado] = useState('');
   const [motivo, setMotivo] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [duracionTipo, setDuracionTipo] = useState('INDETERMINADO');
   const [cantidadDias, setCantidadDias] = useState(1);
+  const [eventosAfectados, setEventosAfectados] = useState([]);
+  const [selectedAsignaciones, setSelectedAsignaciones] = useState({});
+  const [wizardStep, setWizardStep] = useState(1);
 
   // Modal para asignación de materias
   const [selectedEspacioParaMaterias, setSelectedEspacioParaMaterias] = useState(null);
@@ -45,12 +46,18 @@ export default function EspaciosManagement({ user, token }) {
     setError('');
     setDuracionTipo('INDETERMINADO');
     setCantidadDias(1);
+    setEventosAfectados([]);
+    setSelectedAsignaciones({});
+    setWizardStep(1);
   };
 
   const handleCloseModal = () => {
     setSelectedEspacio(null);
     setTargetEstado('');
     setMotivo('');
+    setEventosAfectados([]);
+    setSelectedAsignaciones({});
+    setWizardStep(1);
   };
 
   const handleConfirmStateChange = async (e) => {
@@ -67,6 +74,52 @@ export default function EspaciosManagement({ user, token }) {
       setError('');
       setSuccessMsg('');
 
+      // PASO 1: Si hay eventos afectados, entrar al Wizard
+      if (wizardStep === 1 && ['MANTENIMIENTO', 'INHABILITADO'].includes(targetEstado)) {
+        const queryParams = new URLSearchParams({
+          estado: targetEstado,
+          duracionTipo,
+          cantidadDias: cantidadDias === '' ? 1 : cantidadDias
+        }).toString();
+
+        const resPre = await fetch(`/api/espacios/${selectedEspacio.id}/pre-inhabilitar?${queryParams}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (!resPre.ok) {
+          const errData = await resPre.json();
+          throw new Error(errData.error || 'Error al calcular eventos afectados.');
+        }
+
+        const preData = await resPre.json();
+        
+        if (preData.eventosAfectados && preData.eventosAfectados.length > 0) {
+          // Inicializar las asignaciones por defecto
+          const initialAsignaciones = {};
+          preData.eventosAfectados.forEach(evt => {
+            if (evt.candidatos && evt.candidatos.length > 0) {
+              initialAsignaciones[evt.id] = {
+                action: 'REASSIGN',
+                espacioSugeridoId: evt.candidatos[0].espacioSugeridoId,
+                espacioSugeridoNombre: evt.candidatos[0].espacioSugeridoNombre,
+                fechaSugerida: evt.candidatos[0].fechaSugerida,
+                horaInicioSugerida: evt.candidatos[0].horaInicioSugerida,
+                horaFinSugerida: evt.candidatos[0].horaFinSugerida
+              };
+            } else {
+              initialAsignaciones[evt.id] = { action: 'CANCEL' };
+            }
+          });
+
+          setEventosAfectados(preData.eventosAfectados);
+          setSelectedAsignaciones(initialAsignaciones);
+          setWizardStep(2); // Ir al paso 2
+          setSubmitting(false);
+          return;
+        }
+      }
+
+      // PASO 2: Confirmar inhabilitación definitiva con las asignaciones elegidas
       const res = await fetch(`/api/espacios/${selectedEspacio.id}/estado`, {
         method: 'PATCH',
         headers: {
@@ -79,7 +132,8 @@ export default function EspaciosManagement({ user, token }) {
           ...(targetEstado === 'INHABILITADO' && { 
             duracionTipo, 
             cantidadDias: cantidadDias === '' ? 1 : parseInt(cantidadDias, 10) 
-          })
+          }),
+          asignaciones: wizardStep === 2 ? selectedAsignaciones : null
         })
       });
 
@@ -90,8 +144,8 @@ export default function EspaciosManagement({ user, token }) {
       }
 
       let msg = data.message;
-      if (data.eventosCanceladosCount > 0) {
-        msg += ` Se cancelaron y notificaron por correo ${data.eventosCanceladosCount} reserva(s) afectada(s).`;
+      if (data.eventosAfectadosCount > 0) {
+        msg += ` Se reasignaron y/o cancelaron ${data.eventosAfectadosCount} reserva(s) afectada(s).`;
       }
 
       setSuccessMsg(msg);
@@ -103,7 +157,6 @@ export default function EspaciosManagement({ user, token }) {
       setSubmitting(false);
     }
   };
-
   const handleDirectActivar = async (espacio) => {
     try {
       setLoading(true);
@@ -296,7 +349,7 @@ export default function EspaciosManagement({ user, token }) {
       {selectedEspacioParaMaterias && (
         <MateriaAssignmentModal
           espacio={selectedEspacioParaMaterias}
-          token={token}
+      token={token}
           onClose={() => setSelectedEspacioParaMaterias(null)}
           onUpdated={fetchEspacios}
         />
@@ -305,105 +358,238 @@ export default function EspaciosManagement({ user, token }) {
       {/* Modal de confirmación de Mantenimiento / Inhabilitación */}
       {selectedEspacio && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl max-w-md w-full p-6 shadow-xl space-y-4">
-            <h3 className="text-xl font-bold text-slate-900 dark:text-white">
-              Cambiar estado de {selectedEspacio.nombre}
+          <div className={`bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl w-full p-6 shadow-xl space-y-4 flex flex-col ${
+            wizardStep === 2 ? 'max-w-2xl max-h-[85vh]' : 'max-w-md'
+          }`}>
+            <h3 className="text-xl font-bold text-slate-900 dark:text-white shrink-0">
+              {wizardStep === 2 ? 'Reasignar reservas afectadas' : `Cambiar estado de ${selectedEspacio.nombre}`}
             </h3>
 
-            <div className="bg-amber-50 dark:bg-amber-950/40 border-l-4 border-amber-500 p-3 rounded text-xs text-amber-900 dark:text-amber-200 space-y-1">
-              <p className="font-bold">⚠️ Contingencia de Reservas Aprobadas / Pendientes:</p>
-              <p>
-                Al cambiar el estado a <strong>{targetEstado}</strong>, cualquier reserva activa programada para este espacio será <strong>CANCELADA AUTOMÁTICAMENTE</strong> y se enviará un correo electrónico de notificación a los solicitantes afectados.
-              </p>
-            </div>
+            {wizardStep === 1 ? (
+              <>
+                <div className="bg-amber-50 dark:bg-amber-950/40 border-l-4 border-amber-500 p-3 rounded text-xs text-amber-900 dark:text-amber-200 space-y-1 shrink-0">
+                  <p className="font-bold">⚠️ Contingencia de Reservas Aprobadas / Pendientes:</p>
+                  <p>
+                    Al cambiar el estado a <strong>{targetEstado}</strong>, se analizarán los eventos futuros afectados y podrás reasignarlos manualmente.
+                  </p>
+                </div>
 
-            <form onSubmit={handleConfirmStateChange} className="space-y-4">
-              {targetEstado === 'INHABILITADO' && (
-                <div className="space-y-3 p-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg">
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
-                    Duración de la Inhabilitación
-                  </label>
-                  <div className="flex gap-4">
-                    <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300 cursor-pointer">
-                      <input 
-                        type="radio" 
-                        name="duracionTipo" 
-                        value="INDETERMINADO" 
-                        checked={duracionTipo === 'INDETERMINADO'}
-                        onChange={(e) => setDuracionTipo(e.target.value)}
-                        className="text-blue-600 focus:ring-blue-500 bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600"
-                      />
-                      Indeterminado
-                    </label>
-                    <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300 cursor-pointer">
-                      <input 
-                        type="radio" 
-                        name="duracionTipo" 
-                        value="DIAS" 
-                        checked={duracionTipo === 'DIAS'}
-                        onChange={(e) => setDuracionTipo(e.target.value)}
-                        className="text-blue-600 focus:ring-blue-500 bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600"
-                      />
-                      Por cantidad de días
-                    </label>
-                  </div>
-                  {duracionTipo === 'DIAS' && (
-                    <div className="pt-2">
-                      <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                        Cantidad de días
+                <form onSubmit={handleConfirmStateChange} className="space-y-4">
+                  {targetEstado === 'INHABILITADO' && (
+                    <div className="space-y-3 p-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg">
+                      <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                        Duración de la Inhabilitación
                       </label>
-                      <input
-                        type="number"
-                        min="1"
-                        value={cantidadDias}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setCantidadDias(val === '' ? '' : (parseInt(val, 10) || 1));
-                        }}
-                        className="w-full text-sm rounded-lg border border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 focus:ring-2 focus:ring-blue-500"
-                        required
-                      />
+                      <div className="flex gap-4">
+                        <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300 cursor-pointer">
+                          <input 
+                            type="radio" 
+                            name="duracionTipo" 
+                            value="INDETERMINADO" 
+                            checked={duracionTipo === 'INDETERMINADO'}
+                            onChange={(e) => setDuracionTipo(e.target.value)}
+                            className="text-blue-600 focus:ring-blue-500 bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600"
+                          />
+                          Indeterminado
+                        </label>
+                        <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300 cursor-pointer">
+                          <input 
+                            type="radio" 
+                            name="duracionTipo" 
+                            value="DIAS" 
+                            checked={duracionTipo === 'DIAS'}
+                            onChange={(e) => setDuracionTipo(e.target.value)}
+                            className="text-blue-600 focus:ring-blue-500 bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600"
+                          />
+                          Por cantidad de días
+                        </label>
+                      </div>
+                      {duracionTipo === 'DIAS' && (
+                        <div className="pt-2">
+                          <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                            Cantidad de días
+                          </label>
+                          <input
+                            type="number"
+                            min="1"
+                            value={cantidadDias}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setCantidadDias(val === '' ? '' : (parseInt(val, 10) || 1));
+                            }}
+                            className="w-full text-sm rounded-lg border border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 focus:ring-2 focus:ring-blue-500"
+                            required
+                          />
+                        </div>
+                      )}
                     </div>
                   )}
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                      Motivo de Mantenimiento / Inhabilitación *
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={motivo}
+                      onChange={(e) => setMotivo(e.target.value)}
+                      placeholder="Ej: Mantenimiento correctivo de proyectores y aire acondicionado..."
+                      className="w-full text-sm rounded-lg border border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 focus:ring-2 focus:ring-blue-500"
+                      required
+                    />
+                  </div>
+
+                  <div className="flex justify-end gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={handleCloseModal}
+                      disabled={submitting}
+                      className="px-4 py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={submitting}
+                      className={`px-4 py-2 text-xs font-semibold text-white rounded-lg shadow-sm ${
+                        targetEstado === 'MANTENIMIENTO'
+                          ? 'bg-amber-600 hover:bg-amber-700'
+                          : 'bg-rose-600 hover:bg-rose-700'
+                      }`}
+                    >
+                      {submitting ? 'Procesando...' : 'Siguiente'}
+                    </button>
+                  </div>
+                </form>
+              </>
+            ) : (
+              <>
+                <div className="bg-blue-50 dark:bg-blue-950/40 border-l-4 border-blue-500 p-3 rounded text-xs text-blue-900 dark:text-blue-200 shrink-0">
+                  <p className="font-bold">📋 Selección de Alternativas para {eventosAfectados.length} Reserva(s):</p>
+                  <p>
+                    Se encontraron las siguientes opciones viables. Elegí el espacio alternativo para cada evento o seleccioná "Cancelar" para cancelar la reserva.
+                  </p>
                 </div>
-              )}
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Motivo de Mantenimiento / Inhabilitación *
-                </label>
-                <textarea
-                  rows={3}
-                  value={motivo}
-                  onChange={(e) => setMotivo(e.target.value)}
-                  placeholder="Ej: Mantenimiento correctivo de proyectores y aire acondicionado, reparaciones eléctricas en laboratorio..."
-                  className="w-full text-sm rounded-lg border border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 focus:ring-2 focus:ring-blue-500"
-                  required
-                />
-              </div>
+                <div className="flex-1 overflow-y-auto pr-1 space-y-4">
+                  {eventosAfectados.map(evt => (
+                    <div key={evt.id} className="p-4 border rounded-xl bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700 space-y-3">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h4 className="font-bold text-sm text-slate-900 dark:text-white">{evt.titulo}</h4>
+                          <p className="text-xs text-slate-500 mt-0.5">
+                            Original: {new Date(evt.fecha).toISOString().split('T')[0]} @ {evt.horaInicio} - {evt.horaFin} ({evt.asistentesEstimados} personas)
+                          </p>
+                        </div>
+                        <span className="text-[11px] px-2 py-0.5 font-medium rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-350 shrink-0">
+                          {evt.tipo}
+                        </span>
+                      </div>
 
-              <div className="flex justify-end gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={handleCloseModal}
-                  disabled={submitting}
-                  className="px-4 py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className={`px-4 py-2 text-xs font-semibold text-white rounded-lg shadow-sm ${
-                    targetEstado === 'MANTENIMIENTO'
-                      ? 'bg-amber-600 hover:bg-amber-700'
-                      : 'bg-rose-600 hover:bg-rose-700'
-                  }`}
-                >
-                  {submitting ? 'Procesando...' : `Confirmar ${targetEstado}`}
-                </button>
-              </div>
-            </form>
+                      <div className="space-y-2">
+                        {evt.candidatos && evt.candidatos.length > 0 ? (
+                          evt.candidatos.map((cand, idx) => (
+                            <label 
+                              key={idx} 
+                              className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer text-xs transition-colors ${
+                                selectedAsignaciones[evt.id]?.action === 'REASSIGN' && 
+                                selectedAsignaciones[evt.id]?.espacioSugeridoId === cand.espacioSugeridoId &&
+                                selectedAsignaciones[evt.id]?.fechaSugerida === cand.fechaSugerida
+                                  ? 'border-blue-500 bg-blue-50/20 dark:bg-blue-950/20'
+                                  : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700/50'
+                              }`}
+                            >
+                              <input
+                                type="radio"
+                                name={`reassign-${evt.id}`}
+                                checked={
+                                  selectedAsignaciones[evt.id]?.action === 'REASSIGN' && 
+                                  selectedAsignaciones[evt.id]?.espacioSugeridoId === cand.espacioSugeridoId &&
+                                  selectedAsignaciones[evt.id]?.fechaSugerida === cand.fechaSugerida
+                                }
+                                onChange={() => setSelectedAsignaciones(prev => ({
+                                  ...prev,
+                                  [evt.id]: { action: 'REASSIGN', ...cand }
+                                }))}
+                                className="mt-0.5 text-blue-600 focus:ring-blue-500"
+                              />
+                              <div className="flex-1">
+                                <p className="font-semibold text-slate-800 dark:text-slate-200">
+                                  Opción {idx + 1}: {cand.espacioSugeridoNombre}
+                                </p>
+                                <p className="text-[11px] text-slate-500 mt-0.5">
+                                  Fecha: {cand.fechaSugerida} | Horario: {cand.horaInicioSugerida} - {cand.horaFinSugerida} (Aforo: {cand.capacidad} pers.)
+                                </p>
+                              </div>
+                            </label>
+                          ))
+                        ) : (
+                          <div className="text-xs p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 rounded-lg text-amber-800 dark:text-amber-200">
+                            ⚠️ No se encontraron espacios alternativos libres para este horario y aforo.
+                          </div>
+                        )}
+
+                        <label 
+                          className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer text-xs transition-colors ${
+                            selectedAsignaciones[evt.id]?.action === 'CANCEL'
+                              ? 'border-rose-500 bg-rose-50/20 dark:bg-rose-950/25'
+                              : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-rose-50/10'
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name={`reassign-${evt.id}`}
+                            checked={selectedAsignaciones[evt.id]?.action === 'CANCEL'}
+                            onChange={() => setSelectedAsignaciones(prev => ({
+                              ...prev,
+                              [evt.id]: { action: 'CANCEL' }
+                            }))}
+                            className="mt-0.5 text-rose-600 focus:ring-rose-500"
+                          />
+                          <div className="flex-1">
+                            <p className="font-bold text-rose-700 dark:text-rose-450">
+                              Cancelar reserva
+                            </p>
+                            <p className="text-[11px] text-slate-500 mt-0.5">
+                              Se cancelará y se enviará la notificación de contingencia habitual.
+                            </p>
+                          </div>
+                        </label>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex justify-between items-center pt-3 border-t border-slate-200 dark:border-slate-850 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setWizardStep(1)}
+                    disabled={submitting}
+                    className="px-4 py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg"
+                  >
+                    Atrás
+                  </button>
+                  <div className="flex gap-3">
+                    <button
+                      type="button"
+                      onClick={handleCloseModal}
+                      disabled={submitting}
+                      className="px-4 py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 border border-slate-250 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg"
+                    >
+                      Cerrar todo
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleConfirmStateChange}
+                      disabled={submitting}
+                      className="px-4 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm"
+                    >
+                      {submitting ? 'Procesando...' : 'Confirmar y Enviar Propuestas'}
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
