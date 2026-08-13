@@ -6,6 +6,7 @@ export default function Register({ onRegisterSuccess, onNavigate }) {
   const [nombre, setNombre] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [tipoUsuario, setTipoUsuario] = useState('ESTUDIANTE');
   const [escuelaId, setEscuelaId] = useState('');
   const [escuelas, setEscuelas] = useState([]);
   const [error, setError] = useState('');
@@ -49,6 +50,7 @@ export default function Register({ onRegisterSuccess, onNavigate }) {
           nombre,
           email,
           password,
+          tipoUsuario,
           escuelaId: escuelaId || null,
         }),
       });
@@ -187,6 +189,30 @@ export default function Register({ onRegisterSuccess, onNavigate }) {
               <span className="hidden error-msg text-xs text-rose-500 mt-1 pl-1">
                 ❌ La contraseña debe tener al menos 6 caracteres.
               </span>
+            </div>
+          </div>
+
+          {/* Tipo de Usuario */}
+          <div>
+            <label htmlFor="reg-tipo-usuario" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+              Tipo de Usuario
+            </label>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                <User className="h-4 w-4" />
+              </div>
+              <select
+                id="reg-tipo-usuario"
+                name="tipoUsuario"
+                value={tipoUsuario}
+                onChange={(e) => setTipoUsuario(e.target.value)}
+                className="w-full pl-10 pr-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-lg text-sm text-slate-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all font-medium"
+              >
+                <option value="ESTUDIANTE">Estudiante</option>
+                <option value="PROFESOR">Profesor</option>
+                <option value="COORDINADOR">Coordinador</option>
+                <option value="GRUPO_EXTERNO">Grupo Externo</option>
+              </select>
             </div>
           </div>
 

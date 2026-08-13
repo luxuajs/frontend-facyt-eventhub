@@ -13,6 +13,7 @@ import CoordinatorQueue from './components/CoordinatorQueue';
 import CoordinatorManagement from './components/CoordinatorManagement';
 import AuditLogs from './components/AuditLogs';
 import EspaciosManagement from './components/EspaciosManagement';
+import QRModal from './components/QRModal';
 
 export default function App() {
   const [token, setToken] = useState(localStorage.getItem('token') || '');
@@ -29,6 +30,7 @@ export default function App() {
   const [verifyEmail, setVerifyEmail] = useState('');
   const [resetToken, setResetToken] = useState('');
   const [inviteToken, setInviteToken] = useState('');
+  const [qrEvento, setQrEvento] = useState(null);
   const [darkMode, setDarkMode] = useState(() => {
     return localStorage.getItem('theme') !== 'light';
   });
@@ -44,10 +46,11 @@ export default function App() {
     }
   }, [darkMode]);
 
-  // Efecto para capturar rutas de invitación / recuperación por token en la URL
+  // Efecto para capturar rutas de invitación / recuperación por token o asistencia en la URL
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const tokenParam = params.get('token');
+    const asistirEventId = params.get('asistirEventId');
     const path = window.location.pathname;
 
     if (tokenParam) {
@@ -58,6 +61,16 @@ export default function App() {
         setResetToken(tokenParam);
         setActiveTab('reset-password');
       }
+    } else if (asistirEventId) {
+      fetch(`/api/eventos/calendario`)
+        .then(res => res.json())
+        .then(data => {
+          if (Array.isArray(data)) {
+            const ev = data.find(e => e.id === asistirEventId);
+            if (ev) setQrEvento(ev);
+          }
+        })
+        .catch(err => console.error('Error al cargar evento por QR:', err));
     }
   }, []);
 
@@ -166,6 +179,17 @@ export default function App() {
           <p className="mt-1 font-mono text-[10px] text-slate-400 dark:text-slate-500">FaCyT EventHub - Construido para la excelencia académica</p>
         </div>
       </footer>
+
+      {/* Modal QR de Asistencia */}
+      {qrEvento && (
+        <QRModal
+          evento={qrEvento}
+          token={token}
+          user={user}
+          onClose={() => setQrEvento(null)}
+          onNavigate={setActiveTab}
+        />
+      )}
 
     </div>
   );

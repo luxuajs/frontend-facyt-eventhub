@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Calendar as CalendarIcon, MapPin, Clock, Filter, Columns, LayoutGrid, CalendarDays, Megaphone } from 'lucide-react';
+import { Calendar as CalendarIcon, MapPin, Clock, Filter, Columns, LayoutGrid, CalendarDays, Megaphone, QrCode } from 'lucide-react';
 import PromoteEventModal from './PromoteEventModal';
+import QRModal from './QRModal';
 
 const WEEKDAYS = [
   { dayIndex: 1, label: 'Lunes', short: 'Lun', color: 'border-blue-500/30 bg-blue-500/5 text-blue-400' },
@@ -11,7 +12,7 @@ const WEEKDAYS = [
   { dayIndex: 6, label: 'Sábado', short: 'Sáb', color: 'border-cyan-500/30 bg-cyan-500/5 text-cyan-400' },
 ];
 
-export default function CalendarView({ token, user }) {
+export default function CalendarView({ token, user, onNavigate }) {
   const [eventos, setEventos] = useState([]);
   const [espacios, setEspacios] = useState([]);
   const [filterEspacio, setFilterEspacio] = useState('ALL');
@@ -19,6 +20,7 @@ export default function CalendarView({ token, user }) {
   const [viewMode, setViewMode] = useState('weekly'); // 'weekly' | 'list'
   const [selectedMobileDay, setSelectedMobileDay] = useState('ALL');
   const [promotingEvento, setPromotingEvento] = useState(null);
+  const [qrEvento, setQrEvento] = useState(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -162,6 +164,7 @@ export default function CalendarView({ token, user }) {
           <span className="font-medium text-slate-800 dark:text-slate-300 truncate max-w-[140px]">{evento.usuario.nombre}</span>
         </div>
 
+        {/* Botón Promocionar */}
         {token && user && (user.rol === 'ROOT' || user.rol === 'COORDINADOR' || (user.rol === 'SOLICITANTE' && (evento.usuarioId === user.id || (evento.usuario && evento.usuario.id === user.id)))) && (
           <button
             type="button"
@@ -172,6 +175,16 @@ export default function CalendarView({ token, user }) {
             Promocionar Evento
           </button>
         )}
+
+        {/* Botón Código QR / Asistencia */}
+        <button
+          type="button"
+          onClick={() => setQrEvento(evento)}
+          className="w-full py-1.5 px-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-lg text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-1.5 border border-slate-200 dark:border-slate-700"
+        >
+          <QrCode className="h-3.5 w-3.5 text-blue-500" />
+          Ver QR / Asistencia
+        </button>
       </div>
     </div>
   );
@@ -331,6 +344,16 @@ export default function CalendarView({ token, user }) {
           evento={promotingEvento}
           onClose={() => setPromotingEvento(null)}
           token={token}
+        />
+      )}
+
+      {qrEvento && (
+        <QRModal
+          evento={qrEvento}
+          token={token}
+          user={user}
+          onClose={() => setQrEvento(null)}
+          onNavigate={onNavigate}
         />
       )}
     </div>

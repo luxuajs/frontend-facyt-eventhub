@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { CalendarRange, Sparkles, MapPin, Clock, Info, Check, X, ArrowRight, AlertCircle, Edit3, Megaphone } from 'lucide-react';
+import { CalendarRange, Sparkles, MapPin, Clock, Info, Check, X, ArrowRight, AlertCircle, Edit3, Megaphone, QrCode } from 'lucide-react';
 import EditEventModal from './EditEventModal';
 import PromoteEventModal from './PromoteEventModal';
+import QRModal from './QRModal';
 
 export default function ReservationsList({ token, user }) {
   const [reservas, setReservas] = useState([]);
@@ -10,6 +11,7 @@ export default function ReservationsList({ token, user }) {
   const [actionSuccess, setActionSuccess] = useState('');
   const [editingEvento, setEditingEvento] = useState(null);
   const [promotingEvento, setPromotingEvento] = useState(null);
+  const [qrModalEvento, setQrModalEvento] = useState(null);
 
   const fetchReservas = () => {
     fetch('/api/eventos/mis-eventos', {

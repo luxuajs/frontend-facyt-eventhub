@@ -27,17 +27,42 @@ export default function NewReservationForm({ token, user, onReservationCreated }
   // Estado para respuestas de conflicto/elección personal
   const [collisionInfo, setCollisionInfo] = useState(null);
 
+  const [reservaDirecta, setReservaDirecta] = useState(false);
+  const isCoordinadorOrRoot = ['COORDINADOR', 'ROOT'].includes(user?.rol);
+
+  const isSpaceAllowed = (esp) => {
+    if (!esp) return false;
+    const userRole = user?.rol;
+    const tipoUser = user?.tipoUsuario;
+
+    if (userRole === 'ROOT' || userRole === 'COORDINADOR' || tipoUser === 'COORDINADOR' || tipoUser === 'PROFESOR') {
+      return true;
+    }
+    if (tipoUser === 'ESTUDIANTE') {
+      return esp.tipo === 'SALON';
+    }
+    if (tipoUser === 'GRUPO_EXTERNO') {
+      return esp.tipo === 'SALON' || esp.tipo === 'AUDITORIO';
+    }
+    return true;
+  };
+
   useEffect(() => {
     fetch('/api/eventos/espacios')
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data)) {
           setEspacios(data);
-          if (data.length > 0) setEspacioId(data[0].id);
+          const firstAllowed = data.find(e => isSpaceAllowed(e));
+          if (firstAllowed) {
+            setEspacioId(firstAllowed.id);
+          } else if (data.length > 0) {
+            setEspacioId(data[0].id);
+          }
         }
       })
       .catch(err => console.error('Error al cargar espacios:', err));
-  }, []);
+  }, [user]);
 
   // Obtención automática de opciones sugeridas cuando se completan datos requeridos
   useEffect(() => {
@@ -68,10 +93,20 @@ export default function NewReservationForm({ token, user, onReservationCreated }
 
         if (res.ok) {
           const data = await res.json();
-          setSugerenciasAuto(data);
+          const rawOpciones = data.opcionesSugeridas || data.espaciosSugeridos || [];
+          const allowedOpciones = rawOpciones.filter(isSpaceAllowed);
+          const mejorOp = allowedOpciones.length > 0
+            ? allowedOpciones[0]
+            : (data.mejorOpcion && isSpaceAllowed(data.mejorOpcion) ? data.mejorOpcion : null);
+
+          setSugerenciasAuto({
+            ...data,
+            opcionesSugeridas: allowedOpciones,
+            mejorOpcion: mejorOp
+          });
           // Si estamos en modo sugerido y hay una mejor opción, auto-seleccionarla
-          if (modoAsignacion === 'SUGERIDO' && data.mejorOpcion) {
-            setEspacioId(data.mejorOpcion.id);
+          if (modoAsignacion === 'SUGERIDO' && mejorOp) {
+            setEspacioId(mejorOp.id);
           }
         }
       } catch (err) {
@@ -82,10 +117,7 @@ export default function NewReservationForm({ token, user, onReservationCreated }
     }, 400);
 
     return () => clearTimeout(timer);
-  }, [tipo, carrera, materia, asistentesEstimados, fecha, horaInicio, horaFin, token, modoAsignacion]);
-
-  const [reservaDirecta, setReservaDirecta] = useState(false);
-  const isCoordinadorOrRoot = ['COORDINADOR', 'ROOT'].includes(user?.rol);
+  }, [tipo, carrera, materia, asistentesEstimados, fecha, horaInicio, horaFin, token, modoAsignacion, user]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -101,6 +133,18 @@ export default function NewReservationForm({ token, user, onReservationCreated }
         }
       });
       setError('Por favor completa todos los campos requeridos correctamente.');
+      return;
+    }
+
+    const selected = espacios.find(e => e.id === espacioId);
+    if (selected && !isSpaceAllowed(selected)) {
+      if (user?.tipoUsuario === 'ESTUDIANTE') {
+        setError('Restricción de perfil: Como usuario tipo Estudiante solo puedes reservar espacios tipo Salón (Aulas).');
+      } else if (user?.tipoUsuario === 'GRUPO_EXTERNO') {
+        setError('Restricción de perfil: Como usuario tipo Grupo Externo solo puedes reservar espacios tipo Salón (Aulas) o Auditorio.');
+      } else {
+        setError('Tu perfil no tiene permisos para seleccionar este tipo de espacio.');
+      }
       return;
     }
 
@@ -447,6 +491,21 @@ export default function NewReservationForm({ token, user, onReservationCreated }
 
           {/* Selección del Espacio: Sugerido vs Elección Personal */}
           <div className="pt-2 border-t border-slate-200 dark:border-slate-800 space-y-3">
+            
+            {/* Aviso de restricción según tipo de usuario */}
+            {user?.tipoUsuario === 'ESTUDIANTE' && !isCoordinadorOrRoot && (
+              <div className="p-3 bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300 rounded-lg text-xs flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 shrink-0 text-amber-500" />
+                <span>Restricción de perfil (Estudiante): Solo se permiten reservas en espacios tipo <strong>Salón (Aulas)</strong>.</span>
+              </div>
+            )}
+            {user?.tipoUsuario === 'GRUPO_EXTERNO' && !isCoordinadorOrRoot && (
+              <div className="p-3 bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300 rounded-lg text-xs flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 shrink-0 text-amber-500" />
+                <span>Restricción de perfil (Grupo Externo): Solo se permiten reservas en <strong>Salones</strong> o <strong>Auditorio</strong>.</span>
+              </div>
+            )}
+
             <div className="flex items-center justify-between">
               <label className="text-sm font-semibold text-slate-800 dark:text-slate-200">
                 Selección de Espacio Físico
@@ -573,7 +632,7 @@ export default function NewReservationForm({ token, user, onReservationCreated }
               </div>
             )}
 
-            {/* MODO PERSONAL: Selector manual de todos los espacios */}
+            {/* MODO PERSONAL: Selector manual de espacios permitidos */}
             {modoAsignacion === 'PERSONAL' && (
               <div>
                 <select
@@ -584,9 +643,11 @@ export default function NewReservationForm({ token, user, onReservationCreated }
                 >
                   {espacios.map((esp) => {
                     const isInactive = esp.estado !== 'ACTIVO';
+                    const allowed = isSpaceAllowed(esp);
+                    const isDisabled = isInactive || !allowed;
                     return (
-                      <option key={esp.id} value={esp.id} disabled={isInactive}>
-                        {esp.nombre} (Capacidad: {esp.capacidad}) {isInactive ? `[${esp.estado}]` : ''}
+                      <option key={esp.id} value={esp.id} disabled={isDisabled}>
+                        {esp.nombre} ({esp.tipo}) (Capacidad: {esp.capacidad}){isInactive ? ` [${esp.estado}]` : !allowed ? ' [No permitido para tu perfil]' : ''}
                       </option>
                     );
                   })}
