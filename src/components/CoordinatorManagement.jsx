@@ -215,6 +215,33 @@ export default function CoordinatorManagement({ token }) {
             <BookOpen className="w-4 h-4" />
             Catálogo de Materias
           </button>
+          <button
+            onClick={async () => {
+              if (window.confirm('⚠️ ¿Estás seguro de que deseas reiniciar la base de datos a CERO? Se borrarán todos los eventos, asistencias, auditorías y usuarios (preservando sólo tu cuenta ROOT).')) {
+                try {
+                  setError('');
+                  setSuccess('');
+                  const res = await fetch('/api/auth/reset-database', {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${token}`
+                    }
+                  });
+                  const data = await res.json();
+                  if (!res.ok) throw new Error(data.error || 'Error al reiniciar la base de datos.');
+                  setSuccess(data.message || 'Base de datos reiniciada con éxito.');
+                  fetchCoordinadores();
+                } catch (err) {
+                  setError(err.message);
+                }
+              }
+            }}
+            className="px-3.5 py-2 bg-rose-600/10 hover:bg-rose-600/20 text-rose-500 border border-rose-500/30 rounded-xl text-xs font-semibold transition flex items-center gap-1.5"
+          >
+            <Trash2 className="w-4 h-4" />
+            Reiniciar BD a Cero
+          </button>
         </div>
       </div>
 
