@@ -81,7 +81,7 @@ export default function ForgotPassword({ onNavigate }) {
         )}
 
         {/* Form */}
-        {!message && (
+        {!message ? (
           <form className="mt-8 space-y-6" onSubmit={handleSubmit} noValidate>
             <div>
               <label htmlFor="forgot-email" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
@@ -125,6 +125,16 @@ export default function ForgotPassword({ onNavigate }) {
               </button>
             </div>
           </form>
+        ) : (
+          <div className="space-y-4 text-center mt-4">
+            <button
+              onClick={handleSubmit}
+              disabled={loading}
+              className="w-full py-2.5 px-4 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold rounded-lg transition-all"
+            >
+              {loading ? 'Reenviando...' : '¿No lo recibiste? Reenviar correo'}
+            </button>
+          </div>
         )}
 
       </div>

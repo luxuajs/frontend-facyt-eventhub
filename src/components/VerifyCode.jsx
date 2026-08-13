@@ -38,6 +38,26 @@ export default function VerifyCode({ email, onNavigate }) {
     }
   };
 
+  const handleResendCode = async () => {
+    setError('');
+    setMessage('');
+    setLoading(true);
+
+    try {
+      const res = await fetch('/api/auth/resend-verification-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      });
+      const data = await safeParseJson(res, 'Error al reenviar código.');
+      setMessage(data.message || 'Nuevo código enviado a tu correo.');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-[80vh] flex items-center justify-center px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8 p-8 bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 backdrop-blur-md rounded-2xl shadow-xl transition-all duration-150">
@@ -89,13 +109,22 @@ export default function VerifyCode({ email, onNavigate }) {
               />
             </div>
 
-            <div>
+            <div className="space-y-3">
               <button
                 type="submit"
                 disabled={loading}
                 className="w-full px-4 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:bg-blue-600/50 text-white font-medium text-sm rounded-lg shadow-sm transition-all duration-150 active:scale-[0.98] flex items-center justify-center"
               >
                 {loading ? 'Verificando...' : 'Confirmar Código'}
+              </button>
+
+              <button
+                type="button"
+                onClick={handleResendCode}
+                disabled={loading}
+                className="w-full text-center text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline py-1"
+              >
+                ¿No recibiste el código? Solicitar uno nuevo
               </button>
             </div>
           </form>
