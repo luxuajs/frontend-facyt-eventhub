@@ -119,7 +119,8 @@ export default function CalendarView({ token, user, onNavigate }) {
   const renderEventCard = (evento) => (
     <div
       key={evento.id}
-      className="p-4 bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 backdrop-blur-md rounded-xl shadow-sm hover:shadow-md hover:border-slate-300 dark:hover:border-slate-700 transition-all flex flex-col justify-between space-y-3"
+      onClick={() => setQrEvento(evento)}
+      className="p-4 bg-white dark:bg-slate-900/90 rounded-xl border border-slate-200 dark:border-slate-800/80 hover:border-blue-500 dark:hover:border-blue-500/50 shadow-sm hover:shadow-md transition-all duration-150 flex flex-col justify-between space-y-3 relative group cursor-pointer"
     >
       <div className="space-y-2">
         {/* Badge Priority & Space Type */}
@@ -168,7 +169,10 @@ export default function CalendarView({ token, user, onNavigate }) {
         {token && user && (user.rol === 'ROOT' || user.rol === 'COORDINADOR' || (user.rol === 'SOLICITANTE' && (evento.usuarioId === user.id || (evento.usuario && evento.usuario.id === user.id)))) && (
           <button
             type="button"
-            onClick={() => setPromotingEvento(evento)}
+            onClick={(e) => {
+              e.stopPropagation();
+              setPromotingEvento(evento);
+            }}
             className="w-full py-1.5 px-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white rounded-lg text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-1.5"
           >
             <Megaphone className="h-3.5 w-3.5" />
